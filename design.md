@@ -13,6 +13,11 @@ Fairy Fun is playable on laptop and desktop computers and also iPads
 and phones of all types.
 
 
+## Design aesthetic
+
+Bright rainbow mostly.
+
+
 ## Gameplay
 
 
@@ -91,3 +96,6 @@ the starting tile.
  * Side doors that lead to fun activities including obstacle courses
    and much more.
  * Pick a car or other vehicle.
+ * Add up/down buttons to switch between walking and flying. When you
+   press up, up turns grey and down turns rainbow. When you press
+   down, down turns grey and up turns rainbow.
