@@ -99,3 +99,4 @@ the starting tile.
  * Add up/down buttons to switch between walking and flying. When you
    press up, up turns grey and down turns rainbow. When you press
    down, down turns grey and up turns rainbow.
+ * "Exit" button from all screens except initial.
