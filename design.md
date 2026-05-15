@@ -93,6 +93,8 @@ the starting tile.
  * "Pick your pet" screen between fairy creation and fairy world.
  * Upgrade fairy emoji to customizable fairy images.
  * Make fairy world 3D.
+     * Edit some of the images so that we can make it 3D so that we
+       can see some signs that may be blocked by other things.
  * Side doors that lead to fun activities including obstacle courses
    and much more.
  * Pick a car or other vehicle.
