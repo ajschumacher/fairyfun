@@ -18,6 +18,7 @@
   const state = {
     tile: { ...START_TILE },
     pos: { x: 0.5, y: 0.5 }, // normalized within tile, (0,0) bottom-left, (1,1) top-right
+    tileSet: 'world',         // 'world' (fancy) or 'qworld' (Quinn's sketches)
     keys: { up: false, down: false, left: false, right: false },
     joy: { active: false, dx: 0, dy: 0 },
     lastT: 0,
@@ -69,7 +70,9 @@
   function buildWorldRoute() {
     const t = `${state.tile.x},${state.tile.y}`;
     const p = `${state.pos.x.toFixed(3)},${state.pos.y.toFixed(3)}`;
-    return `/world?tile=${t}&pos=${p}`;
+    let route = `/world?tile=${t}&pos=${p}`;
+    if (state.tileSet !== 'world') route += `&set=${state.tileSet}`;
+    return route;
   }
 
   function setRoute(path) {
@@ -106,6 +109,7 @@
     if (pathname === '/world') {
       const tileStr = params.get('tile');
       const posStr = params.get('pos');
+      const setStr = params.get('set');
       let tile = { ...START_TILE };
       let pos = { x: 0.5, y: 0.5 };
       if (tileStr) {
@@ -123,6 +127,7 @@
       }
       state.tile = tile;
       state.pos = pos;
+      state.tileSet = setStr === 'qworld' ? 'qworld' : 'world';
       show(worldScreen);
       ensureMusicOnFirstInteraction();
       enterWorld();
@@ -136,8 +141,29 @@
 
   // ---------- World ----------
   function tileSrc(x, y) {
-    return `images/world/${x}_${y}.png`;
+    return state.tileSet === 'qworld'
+      ? `images/qworld/${x}_${y}.jpeg`
+      : `images/world/${x}_${y}.png`;
   }
+
+  function toggleTileSet() {
+    state.tileSet = state.tileSet === 'qworld' ? 'world' : 'qworld';
+    loadTile();
+    replaceRoute(buildWorldRoute());
+  }
+
+  // Triple-tap/click the fairy to toggle the tile set.
+  let fairyTaps = [];
+  fairy.addEventListener('pointerdown', (e) => {
+    const now = performance.now();
+    fairyTaps = fairyTaps.filter(t => now - t < 800);
+    fairyTaps.push(now);
+    if (fairyTaps.length >= 3) {
+      fairyTaps = [];
+      toggleTileSet();
+    }
+    e.stopPropagation();
+  });
 
   function loadTile() {
     tileImg.src = tileSrc(state.tile.x, state.tile.y);

@@ -34,7 +34,7 @@ without interruption, but should stop the moment you exit the game.
 When a player first goes to the game, they see the Fairy Fun logo at
 the top of the screen, centered. This is `images/fairyfun.png`. Below
 that is the "start" button, `images/start.png`. Below that is the text
-"Idea by Quinn. Made by Quinn and Aaron."
+"Idea by Quinn. Made by Quinn and Aaron. Version 1."
 
 When the player clicks on the "start" button, it brings them to the
 welcome screen.
@@ -85,6 +85,37 @@ explore the whole map.
 
 The tile images have filenames like `images/world/7_2.png` which is
 the starting tile.
+
+
+### Sketch mode (easter egg)
+
+Quinn's original hand-drawn sketches of the tiles live in
+`images/qworld/`, with filenames that mirror `images/world/` but use
+the `.jpeg` extension (e.g. `images/qworld/7_2.jpeg`).
+
+The fancy `/world/` images are the default. The player can secretly
+toggle to the sketch versions by triple-tapping (or triple-clicking)
+the fairy. Triple-tapping again switches back. There is no visible UI
+for this — it is an easter egg.
+
+
+### Screen persistence via URL
+
+Each screen has its own URL hash so refreshing the page keeps the
+player on the same screen:
+
+ * `#/` — initial screen
+ * `#/welcome` — welcome screen
+ * `#/world?tile=X,Y&pos=PX,PY` — fairy world at tile (X, Y) with the
+   fairy at normalized position (PX, PY) within the tile. If sketch
+   mode is active, `&set=qworld` is appended.
+
+The fairy world URL is kept in sync while the player explores, so a
+refresh lands them on the same tile in roughly the same spot.
+
+Browsers block audio from auto-playing until the player interacts with
+the page. If the page is reloaded directly into the welcome or fairy
+world screen, the music starts on the next click, tap, or key press.
 
 
 ## Future plans (not implemented yet)
