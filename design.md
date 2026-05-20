@@ -65,7 +65,12 @@ world at tile (7, 2).
 The fairy world is an explorable universe that the player flies/walks
 their fairy around.
 
-The fairy is represented by a female fairy emoji for the time being.
+The fairy is represented by a fairy emoji for the time being. When a
+player first loads the game, their fairy's appearance is randomly
+chosen: a gender presentation (neutral, female, or male) and one of
+six skin tones. This keeps players visually distinct in multiplayer.
+The choice is preserved in the URL (and the browser's local storage)
+so it survives a refresh.
 
 The player controls the fairy's movement with arrow keys when a
 keyboard is available, or with an on-screen "joystick" for screen-only
@@ -108,7 +113,9 @@ player on the same screen:
  * `#/welcome` — welcome screen
  * `#/world?tile=X,Y&pos=PX,PY` — fairy world at tile (X, Y) with the
    fairy at normalized position (PX, PY) within the tile. If sketch
-   mode is active, `&set=qworld` is appended.
+   mode is active, `&set=qworld` is appended. The world URL also
+   carries `&room=...` (the multiplayer room) and `&fairy=...` (the
+   fairy's appearance). Every screen's URL carries `&fairy=...`.
 
 The fairy world URL is kept in sync while the player explores, so a
 refresh lands them on the same tile in roughly the same spot.
@@ -116,6 +123,34 @@ refresh lands them on the same tile in roughly the same spot.
 Browsers block audio from auto-playing until the player interacts with
 the page. If the page is reloaded directly into the welcome or fairy
 world screen, the music starts on the next click, tap, or key press.
+
+
+### Multiplayer
+
+Fairy Fun supports calm, peaceful multiplayer: players can wander the
+same world and see each other's fairies.
+
+There is no game server. Players are connected directly to each other
+peer-to-peer (over WebRTC) using the Trystero library, which handles
+the connection handshake over free public infrastructure. The game
+itself remains a set of static files.
+
+Each fairy world has a "room", identified by the `room` value in the
+URL. Players who open a URL with the same room are in the same game.
+A fresh room is created automatically when a player enters the world,
+so sharing your world URL invites a friend into your room.
+
+A player only sees another player's fairy when both fairies are
+standing on the same tile — wandering the world and bumping into a
+friend's fairy is the multiplayer moment.
+
+If two players happen to have the same randomly chosen appearance, one
+of them automatically re-rolls to a different look so they stay
+visually distinct.
+
+If the peer-to-peer connection cannot be established (no network, or a
+restrictive home network), the game quietly falls back to single
+player.
 
 
 ## Future plans (not implemented yet)
