@@ -144,7 +144,6 @@
     const p = `${state.pos.x.toFixed(3)},${state.pos.y.toFixed(3)}`;
     let route = `/world?tile=${t}&pos=${p}`;
     if (state.tileSet !== 'world') route += `&set=${state.tileSet}`;
-    if (state.room) route += `&room=${state.room}`;
     route += `&fairy=${fairyCode()}`;
     return route;
   }
@@ -221,7 +220,7 @@
       state.tile = tile;
       state.pos = pos;
       state.tileSet = setStr === 'qworld' ? 'qworld' : 'world';
-      ensureRoom(params);
+      state.room = FIXED_ROOM;
       show(worldScreen);
       replaceRoute(buildWorldRoute());
       ensureMusicOnFirstInteraction();
@@ -233,17 +232,6 @@
     show(initialScreen);
     replaceRoute(buildInitialRoute());
     stopWorldLoop();
-  }
-
-  // Pick up the multiplayer room from the URL, or make a fresh one so
-  // the player can share their world link to invite a friend.
-  function ensureRoom(params) {
-    const r = params.get('room');
-    if (r && /^[a-z0-9]{4,16}$/i.test(r)) {
-      state.room = r;
-    } else {
-      state.room = Math.random().toString(36).slice(2, 8);
-    }
   }
 
   window.addEventListener('hashchange', applyRoute);
@@ -406,6 +394,8 @@
   // another fairy when you're both standing on the same tile.
   const TRYSTERO_URL = 'https://esm.sh/trystero@0.24.0/nostr';
   const TRYSTERO_APP_ID = 'fairyfun-quinn-aaron';
+  // Everyone playing Fairy Fun shares one world room.
+  const FIXED_ROOM = 'fairyfun-meadow';
   // Trystero's built-in relay list includes small, often-offline
   // relays. We pin a curated set of well-known, high-uptime public
   // Nostr relays so the connection handshake is reliable.

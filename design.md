@@ -34,7 +34,7 @@ without interruption, but should stop the moment you exit the game.
 When a player first goes to the game, they see the Fairy Fun logo at
 the top of the screen, centered. This is `images/fairyfun.png`. Below
 that is the "start" button, `images/start.png`. Below that is the text
-"Idea by Quinn. Made by Quinn and Aaron. Version 1."
+"Idea by Quinn. Made by Quinn and Aaron. Version 2."
 
 When the player clicks on the "start" button, it brings them to the
 welcome screen.
@@ -114,8 +114,8 @@ player on the same screen:
  * `#/world?tile=X,Y&pos=PX,PY` — fairy world at tile (X, Y) with the
    fairy at normalized position (PX, PY) within the tile. If sketch
    mode is active, `&set=qworld` is appended. The world URL also
-   carries `&room=...` (the multiplayer room) and `&fairy=...` (the
-   fairy's appearance). Every screen's URL carries `&fairy=...`.
+   carries `&fairy=...` (the fairy's appearance). Every screen's URL
+   carries `&fairy=...`.
 
 The fairy world URL is kept in sync while the player explores, so a
 refresh lands them on the same tile in roughly the same spot.
@@ -135,10 +135,9 @@ peer-to-peer (over WebRTC) using the Trystero library, which handles
 the connection handshake over free public infrastructure. The game
 itself remains a set of static files.
 
-Each fairy world has a "room", identified by the `room` value in the
-URL. Players who open a URL with the same room are in the same game.
-A fresh room is created automatically when a player enters the world,
-so sharing your world URL invites a friend into your room.
+For now, everyone who plays Fairy Fun shares a single world room, so
+any two players who are in the fairy world at the same time can see
+each other.
 
 A player only sees another player's fairy when both fairies are
 standing on the same tile — wandering the world and bumping into a
