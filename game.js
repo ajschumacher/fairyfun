@@ -406,6 +406,16 @@
   // another fairy when you're both standing on the same tile.
   const TRYSTERO_URL = 'https://esm.sh/trystero@0.24.0/nostr';
   const TRYSTERO_APP_ID = 'fairyfun-quinn-aaron';
+  // Trystero's built-in relay list includes small, often-offline
+  // relays. We pin a curated set of well-known, high-uptime public
+  // Nostr relays so the connection handshake is reliable.
+  const TRYSTERO_RELAYS = [
+    'wss://relay.damus.io',
+    'wss://nos.lol',
+    'wss://relay.snort.social',
+    'wss://nostr.mom',
+    'wss://relay.mostr.pub',
+  ];
 
   let mp = null; // { roomName, sendState, peers: Map, leave(), selfId }
 
@@ -473,7 +483,10 @@
     // The route may have changed while the library was loading.
     if (state.room !== roomName || currentScreen !== worldScreen) return;
 
-    const tr = trystero.joinRoom({ appId: TRYSTERO_APP_ID }, roomName);
+    const tr = trystero.joinRoom(
+      { appId: TRYSTERO_APP_ID, relayConfig: { urls: TRYSTERO_RELAYS } },
+      roomName,
+    );
     const [sendState, getState] = tr.makeAction('state');
     const peers = new Map();
 
