@@ -6,9 +6,12 @@
 
   const initialScreen = document.getElementById('initial-screen');
   const welcomeScreen = document.getElementById('welcome-screen');
+  const chooserScreen = document.getElementById('chooser-screen');
   const worldScreen = document.getElementById('world-screen');
   const startBtn = document.getElementById('start-btn');
   const nextBtn = document.getElementById('next-btn');
+  const fairyGrid = document.getElementById('fairy-grid');
+  const chooserNextBtn = document.getElementById('chooser-next-btn');
   const tileImg = document.getElementById('tile-img');
   const fairy = document.getElementById('fairy');
   const joystick = document.getElementById('joystick');
@@ -19,17 +22,21 @@
     tile: { ...START_TILE },
     pos: { x: 0.5, y: 0.5 }, // normalized within tile, (0,0) bottom-left, (1,1) top-right
     tileSet: 'world',         // 'world' (fancy) or 'qworld' (Quinn's sketches)
-    fairy: { g: 'f', t: 0 },  // appearance: gender n/f/m, skin tone 0-5 (set on boot)
+    fairy: { g: 'f', t: 0 },  // appearance: gender n/f/m, skin tone 0-5 (set by the chooser)
     keys: { up: false, down: false, left: false, right: false },
     joy: { active: false, dx: 0, dy: 0 },
     lastT: 0,
   };
 
+  // True once the player has left the chooser and entered the world.
+  // Until then we connect to multiplayer to listen, but do not announce
+  // ourselves (the player has no fairy yet).
+  let inWorld = false;
+
   // ---------- Fairy appearance ----------
-  // The fairy is a fairy emoji. We randomly pick a gender presentation
-  // (neutral / female / male) and one of six skin tones, so players are
-  // visually distinct in multiplayer. The choice is saved in localStorage
-  // so the player keeps the same look across visits.
+  // The fairy is a fairy emoji: a gender presentation (neutral / female
+  // / male) and one of six skin tones. The player picks theirs on the
+  // fairy chooser screen.
   const FAIRY_BASE = '\u{1F9DA}';   // fairy
   const ZWJ = '‍';             // zero-width joiner
   const VS16 = '️';            // emoji presentation selector
@@ -64,35 +71,14 @@
     return m ? { g: m[1], t: Number(m[2]) } : null;
   }
 
-  function randomFairy() {
-    const g = ['n', 'f', 'm'][Math.floor(Math.random() * 3)];
-    const t = Math.floor(Math.random() * 6);
-    return { g, t };
-  }
-
   function applyFairyAppearance() {
     fairy.textContent = fairyEmoji(state.fairy);
   }
 
-  // Resolve the fairy appearance from localStorage, or pick a fresh
-  // random one on the player's first ever visit.
-  function ensureFairy() {
-    let f = null;
-    try { f = parseFairyCode(localStorage.getItem('fairyfun.fairy')); } catch (e) { /* ignore */ }
-    if (!f) f = randomFairy();
-    setFairy(f);
-  }
-
-  function setFairy(f) {
-    state.fairy = f;
-    try { localStorage.setItem('fairyfun.fairy', fairyCode()); } catch (e) { /* ignore */ }
-    applyFairyAppearance();
-    broadcastState();
-  }
-
   // ---------- Screen flow ----------
   function show(screen) {
-    [initialScreen, welcomeScreen, worldScreen].forEach(s => s.classList.add('hidden'));
+    [initialScreen, welcomeScreen, chooserScreen, worldScreen]
+      .forEach(s => s.classList.add('hidden'));
     screen.classList.remove('hidden');
   }
 
@@ -102,20 +88,92 @@
     if (p && typeof p.catch === 'function') p.catch(() => { /* ignore */ });
   }
 
-  // The game flows forward through three screens: initial -> welcome
-  // -> fairy world. The player enters by clicking through; there is no
-  // URL routing.
+  // The game flows forward through four screens: initial -> welcome ->
+  // fairy chooser -> fairy world. The player enters by clicking through;
+  // there is no URL routing.
   startBtn.addEventListener('click', () => {
     startMusic();
     show(welcomeScreen);
   });
 
   nextBtn.addEventListener('click', () => {
+    show(chooserScreen);
+    openChooser();
+  });
+
+  // ---------- Fairy chooser ----------
+  // A grid of every fairy emoji: rows top-to-bottom are female,
+  // neutral, male; columns left-to-right are skin tone 0 (yellow)
+  // through 5 (dark). Fairies already in use by players in the world
+  // are shown as blank, unpickable cells.
+  const CHOOSER_ROWS = ['f', 'n', 'm'];
+  let chooserSelection = null; // { g, t } once the player has picked
+
+  function openChooser() {
+    chooserSelection = null;
+    chooserNextBtn.disabled = true;
+    renderFairyGrid();
+    // Connect now so the grid can hide fairies that are already in use.
+    initMultiplayer();
+  }
+
+  // Fairy codes currently in use by other players in the world.
+  function takenFairyCodes() {
+    const taken = new Set();
+    if (mp) {
+      for (const peer of mp.peers.values()) {
+        if (peer.fairy) taken.add(peer.fairy);
+      }
+    }
+    return taken;
+  }
+
+  function renderFairyGrid() {
+    const taken = takenFairyCodes();
+    fairyGrid.textContent = '';
+    for (const g of CHOOSER_ROWS) {
+      for (let t = 0; t <= 5; t++) {
+        const cell = document.createElement('button');
+        cell.className = 'fairy-cell';
+        if (taken.has(`${g}${t}`)) {
+          // Already in use — a blank cell that cannot be picked.
+          cell.classList.add('taken');
+          cell.disabled = true;
+        } else {
+          cell.textContent = fairyEmoji({ g, t });
+          cell.addEventListener('click', () => selectFairy(g, t, cell));
+        }
+        fairyGrid.appendChild(cell);
+      }
+    }
+  }
+
+  function selectFairy(g, t, cell) {
+    chooserSelection = { g, t };
+    for (const c of fairyGrid.children) c.classList.remove('selected');
+    cell.classList.add('selected');
+    chooserNextBtn.disabled = false;
+  }
+
+  // While the player is still deciding, keep the grid in sync as other
+  // players come and go. Once a fairy is picked we leave the grid
+  // alone — we deliberately do not re-check for clashes after that.
+  function refreshChooserIfOpen() {
+    if (!chooserScreen.classList.contains('hidden') && !chooserSelection) {
+      renderFairyGrid();
+    }
+  }
+
+  chooserNextBtn.addEventListener('click', () => {
+    if (!chooserSelection) return;
+    state.fairy = chooserSelection;
+    applyFairyAppearance();
     state.tile = { ...START_TILE };
     state.pos = { x: 0.5, y: 0.5 };
+    inWorld = true;
     show(worldScreen);
     enterWorld();
-    initMultiplayer();
+    broadcastState(); // announce ourselves to players already in the world
   });
 
   // ---------- World ----------
@@ -337,7 +395,10 @@
   }
 
   function broadcastState() {
-    if (mp && mp.sendState) {
+    // Only announce ourselves once we are actually in the world. On the
+    // chooser screen we are connected (to see who is around) but have
+    // no fairy yet, so other players should not see us.
+    if (inWorld && mp && mp.sendState) {
       try { mp.sendState(myStatePayload()); } catch (e) { /* ignore */ }
     }
     lastNetSync = performance.now();
@@ -346,28 +407,15 @@
   // Drop peers we have not heard from recently (ghost fairies).
   function reapStalePeers(now) {
     if (!mp) return;
+    let removed = false;
     for (const [id, peer] of mp.peers) {
       if (now - (peer.lastSeen || 0) > PEER_STALE_MS) {
         if (peer.el) peer.el.remove();
         mp.peers.delete(id);
+        removed = true;
       }
     }
-  }
-
-  // Two players who happen to roll the same look shouldn't be
-  // indistinguishable. When we spot a clash, the player with the
-  // higher peer id politely re-rolls to an unused appearance.
-  function resolveFairyClash(peerId, peerFairyCode) {
-    if (!mp || peerFairyCode !== fairyCode()) return;
-    if (mp.selfId <= peerId) return; // the other player re-rolls
-    const used = new Set([fairyCode()]);
-    for (const p of mp.peers.values()) if (p.fairy) used.add(p.fairy);
-    let pick = null;
-    for (let i = 0; i < 80 && !pick; i++) {
-      const cand = randomFairy();
-      if (!used.has(fairyCode(cand))) pick = cand;
-    }
-    if (pick) setFairy(pick);
+    if (removed) refreshChooserIfOpen();
   }
 
   async function initMultiplayer() {
@@ -391,6 +439,7 @@
       const peer = peers.get(id);
       if (peer && peer.el) peer.el.remove();
       peers.delete(id);
+      refreshChooserIfOpen();
     });
     getState((data, id) => {
       if (!data || typeof data !== 'object') return;
@@ -401,7 +450,7 @@
       peer.fairy = data.fairy;
       peer.lastSeen = performance.now();
       renderPeer(id, peer);
-      resolveFairyClash(id, data.fairy);
+      refreshChooserIfOpen();
     });
 
     broadcastState();
@@ -505,7 +554,6 @@
   tileImg.addEventListener('load', updateFairyPosition);
   window.addEventListener('resize', updateFairyPosition);
 
-  // Boot: pick the fairy's look and show the initial screen.
-  ensureFairy();
+  // Boot: show the initial screen.
   show(initialScreen);
 })();

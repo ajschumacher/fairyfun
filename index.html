@@ -6,7 +6,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Fairy Fun</title>
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 
@@ -30,6 +30,14 @@
   </button>
 </div>
 
+<div id="chooser-screen" class="screen hidden">
+  <p class="chooser-title">Choose your fairy</p>
+  <div id="fairy-grid"></div>
+  <button id="chooser-next-btn" class="img-btn" aria-label="Next" disabled>
+    <img src="images/next.png" alt="Next">
+  </button>
+</div>
+
 <div id="world-screen" class="screen hidden">
   <div id="tile-frame">
     <img id="tile-img" alt="">
@@ -42,6 +50,6 @@
 
 <audio id="bgm" src="Footsteps_On_The_Square.mp3" loop preload="auto"></audio>
 
-<script src="game.js?v=8"></script>
+<script src="game.js?v=9"></script>
 </body>
 </html>

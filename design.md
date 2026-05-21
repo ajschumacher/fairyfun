@@ -58,8 +58,33 @@ There should be no cheating and just be yourself.
 
 Below this text, there is the "next" button, `images/next.png`.
 
-When the player clicks on the "next" button, they enter the fairy
-world at tile (7, 2).
+When the player clicks on the "next" button, they go to the fairy
+chooser screen.
+
+
+### Fairy chooser
+
+The fairy chooser screen comes between the welcome screen and the
+fairy world. At the top it says "Choose your fairy". Below that is a
+grid of every possible fairy emoji: rows run top to bottom as female,
+neutral, male; columns run left to right by skin tone, yellow first
+and then light to dark.
+
+The fairy is a fairy emoji for the time being: a gender presentation
+(neutral, female, or male) and one of six skin tones.
+
+So that players are not visually confused, a fairy emoji already in
+use by a player currently in the world does not appear in the grid —
+there is a blank in its place. The "next" button (the same one used on
+the welcome screen) starts inactive. When the player taps a fairy it
+becomes highlighted and the "next" button becomes active; clicking it
+enters the fairy world as the chosen fairy.
+
+To keep things simple, the grid only reflects who is in the world
+while the player has not yet picked. Once a fairy is picked there is
+no further clash check, so if players join or change while someone is
+still on the chooser screen, it is possible (though unlikely) for two
+identical fairies to end up in the world at once.
 
 
 ### Fairy world
@@ -67,12 +92,7 @@ world at tile (7, 2).
 The fairy world is an explorable universe that the player flies/walks
 their fairy around.
 
-The fairy is represented by a fairy emoji for the time being. On a
-player's first ever visit, their fairy's appearance is randomly
-chosen: a gender presentation (neutral, female, or male) and one of
-six skin tones. This keeps players visually distinct in multiplayer.
-The choice is saved in the browser's local storage so the player
-keeps the same look on later visits.
+The fairy is the emoji the player picked on the fairy chooser screen.
 
 The player controls the fairy's movement with arrow keys when a
 keyboard is available, or with an on-screen "joystick" for screen-only
@@ -108,10 +128,11 @@ for this — it is an easter egg.
 
 ### Screen flow
 
-The game flows forward through its three screens — initial, welcome,
-fairy world — and the player always enters by clicking through from
-the start. There is no URL routing: the address never changes, and
-refreshing the page returns the player to the initial screen.
+The game flows forward through its four screens — initial, welcome,
+fairy chooser, fairy world — and the player always enters by clicking
+through from the start. There is no URL routing: the address never
+changes, and refreshing the page returns the player to the initial
+screen.
 
 
 ### Multiplayer
@@ -134,9 +155,8 @@ A player only sees another player's fairy when both fairies are
 standing on the same tile — wandering the world and bumping into a
 friend's fairy is the multiplayer moment.
 
-If two players happen to have the same randomly chosen appearance, one
-of them automatically re-rolls to a different look so they stay
-visually distinct.
+Players keep their fairies visually distinct by choosing from a grid
+that hides fairies already in use (see the fairy chooser, above).
 
 Each player quietly re-broadcasts its presence every few seconds.
 Peer-to-peer disconnections are not always cleanly signalled, so any
