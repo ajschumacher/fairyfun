@@ -391,12 +391,19 @@
     });
 
     broadcastState();
+
+    // Heartbeat on a wall-clock timer — NOT the animation loop, which
+    // browsers pause for background windows. This keeps an idle player
+    // visible to others and reaps peers who have genuinely gone quiet.
+    setInterval(() => {
+      broadcastState();
+      reapStalePeers(performance.now());
+    }, PEER_HEARTBEAT_MS);
   }
 
   // ---------- Main loop ----------
   let rafRunning = false;
   let lastNetSync = 0;
-  let lastStaleCheck = 0;
   let wasMoving = false;
   function tick(now) {
     if (!rafRunning) return;
@@ -427,14 +434,6 @@
       broadcastState();
     }
     wasMoving = moving;
-
-    // Heartbeat: even a still player keeps broadcasting so peers know
-    // it is still here. Then drop any peer that has gone quiet.
-    if (now - lastNetSync > PEER_HEARTBEAT_MS) broadcastState();
-    if (now - lastStaleCheck > 1000) {
-      reapStalePeers(now);
-      lastStaleCheck = now;
-    }
 
     requestAnimationFrame(tick);
   }
