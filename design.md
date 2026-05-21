@@ -134,6 +134,11 @@ If two players happen to have the same randomly chosen appearance, one
 of them automatically re-rolls to a different look so they stay
 visually distinct.
 
+Each player quietly re-broadcasts its presence every few seconds.
+Peer-to-peer disconnections are not always cleanly signalled, so any
+fairy that has gone silent for several seconds is treated as gone and
+removed — this prevents abandoned "ghost" fairies from lingering.
+
 If the peer-to-peer connection cannot be established (no network, or a
 restrictive home network), the game quietly falls back to single
 player.

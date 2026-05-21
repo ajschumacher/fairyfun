@@ -284,6 +284,13 @@
     'wss://relay.mostr.pub',
   ];
 
+  // Peer presence. WebRTC's "peer left" signal is not reliable — a
+  // closed tab or dropped connection can leave a "ghost" fairy behind.
+  // So every player re-broadcasts at least this often, and any peer we
+  // have not heard from for a while is treated as gone and removed.
+  const PEER_HEARTBEAT_MS = 3000;
+  const PEER_STALE_MS = 10000;
+
   let mp = null; // { sendState, peers: Map, selfId } once connected
 
   function renderAllPeers() {
@@ -315,6 +322,18 @@
   function broadcastState() {
     if (mp && mp.sendState) {
       try { mp.sendState(myStatePayload()); } catch (e) { /* ignore */ }
+    }
+    lastNetSync = performance.now();
+  }
+
+  // Drop peers we have not heard from recently (ghost fairies).
+  function reapStalePeers(now) {
+    if (!mp) return;
+    for (const [id, peer] of mp.peers) {
+      if (now - (peer.lastSeen || 0) > PEER_STALE_MS) {
+        if (peer.el) peer.el.remove();
+        mp.peers.delete(id);
+      }
     }
   }
 
@@ -366,6 +385,7 @@
       peer.tile = data.tile;
       peer.pos = data.pos;
       peer.fairy = data.fairy;
+      peer.lastSeen = performance.now();
       renderPeer(id, peer);
       resolveFairyClash(id, data.fairy);
     });
@@ -376,6 +396,7 @@
   // ---------- Main loop ----------
   let rafRunning = false;
   let lastNetSync = 0;
+  let lastStaleCheck = 0;
   let wasMoving = false;
   function tick(now) {
     if (!rafRunning) return;
@@ -400,15 +421,20 @@
       state.pos.y += vy * FAIRY_SPEED * dt;
       const tileChanged = resolveTileTransitions();
       updateFairyPosition();
-      if (tileChanged || now - lastNetSync > 120) {
-        broadcastState();
-        lastNetSync = now;
-      }
+      if (tileChanged || now - lastNetSync > 120) broadcastState();
+    } else if (wasMoving) {
+      // Send one last update the moment the player stops.
+      broadcastState();
     }
-    // The moment the player stops, send one last update so peers see
-    // the exact resting spot.
-    if (wasMoving && !moving) broadcastState();
     wasMoving = moving;
+
+    // Heartbeat: even a still player keeps broadcasting so peers know
+    // it is still here. Then drop any peer that has gone quiet.
+    if (now - lastNetSync > PEER_HEARTBEAT_MS) broadcastState();
+    if (now - lastStaleCheck > 1000) {
+      reapStalePeers(now);
+      lastStaleCheck = now;
+    }
 
     requestAnimationFrame(tick);
   }
