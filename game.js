@@ -275,24 +275,18 @@
   });
 
   // ---------- Multiplayer (Trystero, peer-to-peer) ----------
-  // No server: Trystero connects players directly over WebRTC and
-  // handles the connection handshake over free public infrastructure.
+  // No game server: players talk directly to each other over WebRTC.
+  // Trystero's Firebase strategy uses a Firebase Realtime Database only
+  // to carry the initial connection handshake; once connected, players
+  // are peer-to-peer and the game stays a set of static files.
   // Players in the same "room" see each other's fairies; you only see
   // another fairy when you're both standing on the same tile.
-  const TRYSTERO_URL = 'https://esm.sh/trystero@0.24.0/nostr';
-  const TRYSTERO_APP_ID = 'fairyfun-quinn-aaron';
+  const TRYSTERO_URL = 'https://esm.sh/@trystero-p2p/firebase@0.24.0';
+  // The Firebase Realtime Database that carries the handshake. This URL
+  // is not a secret — database rules limit writes to the handshake path.
+  const FIREBASE_DB_URL = 'https://fairy-fun-182dc-default-rtdb.firebaseio.com';
   // Everyone playing Fairy Fun shares one world room.
   const FIXED_ROOM = 'fairyfun-meadow';
-  // Trystero's built-in relay list includes small, often-offline
-  // relays. We pin a curated set of well-known, high-uptime public
-  // Nostr relays so the connection handshake is reliable.
-  const TRYSTERO_RELAYS = [
-    'wss://relay.damus.io',
-    'wss://nos.lol',
-    'wss://relay.snort.social',
-    'wss://offchain.pub',
-    'wss://relay.mostr.pub',
-  ];
 
   // Peer presence. WebRTC's "peer left" signal is not reliable — a
   // closed tab or dropped connection can leave a "ghost" fairy behind.
@@ -386,10 +380,7 @@
       return;
     }
 
-    const tr = trystero.joinRoom(
-      { appId: TRYSTERO_APP_ID, relayConfig: { urls: TRYSTERO_RELAYS } },
-      FIXED_ROOM,
-    );
+    const tr = trystero.joinRoom({ appId: FIREBASE_DB_URL }, FIXED_ROOM);
     const [sendState, getState] = tr.makeAction('state');
     const peers = new Map();
 

@@ -119,10 +119,12 @@ refreshing the page returns the player to the initial screen.
 Fairy Fun supports calm, peaceful multiplayer: players can wander the
 same world and see each other's fairies.
 
-There is no game server. Players are connected directly to each other
-peer-to-peer (over WebRTC) using the Trystero library, which handles
-the connection handshake over free public infrastructure. The game
-itself remains a set of static files.
+There is no game server. Players connect directly to each other
+peer-to-peer (over WebRTC) using the Trystero library. A Firebase
+Realtime Database carries only the brief initial connection handshake;
+once players are connected they talk straight to each other. The game
+itself remains a set of static files — Firebase is a hosted service,
+not a server we run.
 
 For now, everyone who plays Fairy Fun shares a single world room, so
 any two players who are in the fairy world at the same time can see
