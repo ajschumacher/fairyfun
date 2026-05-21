@@ -24,9 +24,11 @@ Bright rainbow mostly.
 ### Background music
 
 The game has background music that plays on a loop the whole time the
-game is open. The music is in `Footsteps_On_The_Square.mp3`. The music
-should start the moment you enter the game and keep playing forever
-without interruption, but should stop the moment you exit the game.
+game is open. The music is in `Footsteps_On_The_Square.mp3`. Web
+browsers do not allow sound to play until the player interacts with
+the page, so the music starts the moment the player clicks the "start"
+button on the initial screen. From then on it keeps playing forever
+without interruption, and it stops when the player closes the game.
 
 
 ### Initial screen

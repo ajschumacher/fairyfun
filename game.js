@@ -246,6 +246,7 @@
     knob.style.transform = 'translate(-50%, -50%)';
   }
   joystick.addEventListener('pointerdown', (e) => {
+    if (joyPointerId !== null) return; // already tracking a finger
     joyPointerId = e.pointerId;
     joystick.setPointerCapture(e.pointerId);
     setJoy(e.clientX, e.clientY);
@@ -263,6 +264,15 @@
   joystick.addEventListener('pointerup', endJoy);
   joystick.addEventListener('pointercancel', endJoy);
   joystick.addEventListener('pointerleave', endJoy);
+
+  // If the window loses focus mid-move (the player alt-tabs or switches
+  // apps), the matching keyup / pointerup may never arrive. Clear all
+  // input so the fairy does not drift on its own when focus returns.
+  window.addEventListener('blur', () => {
+    state.keys.up = state.keys.down = state.keys.left = state.keys.right = false;
+    joyPointerId = null;
+    resetJoy();
+  });
 
   // ---------- Multiplayer (Trystero, peer-to-peer) ----------
   // No server: Trystero connects players directly over WebRTC and
@@ -308,7 +318,20 @@
       && peer.tile.x === state.tile.x && peer.tile.y === state.tile.y;
     peer.el.textContent = fairyEmoji(parseFairyCode(peer.fairy));
     peer.el.style.display = sameTile ? '' : 'none';
-    if (sameTile && peer.pos) placeFairyEl(peer.el, peer.pos);
+    if (sameTile && peer.pos) {
+      if (!peer.placed) {
+        // First placement: snap into position rather than sliding in
+        // from the corner (the CSS transition would otherwise animate
+        // from the element's default 0,0).
+        peer.el.style.transition = 'none';
+        placeFairyEl(peer.el, peer.pos);
+        peer.el.getBoundingClientRect(); // flush layout before re-enabling
+        peer.el.style.transition = '';
+        peer.placed = true;
+      } else {
+        placeFairyEl(peer.el, peer.pos);
+      }
+    }
   }
 
   function myStatePayload() {
