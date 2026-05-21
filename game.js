@@ -246,6 +246,7 @@
     knob.style.transform = 'translate(-50%, -50%)';
   }
   joystick.addEventListener('pointerdown', (e) => {
+    if (joyPointerId !== null) return; // already tracking a finger
     joyPointerId = e.pointerId;
     joystick.setPointerCapture(e.pointerId);
     setJoy(e.clientX, e.clientY);
@@ -264,25 +265,35 @@
   joystick.addEventListener('pointercancel', endJoy);
   joystick.addEventListener('pointerleave', endJoy);
 
+  // If the window loses focus mid-move (the player alt-tabs or switches
+  // apps), the matching keyup / pointerup may never arrive. Clear all
+  // input so the fairy does not drift on its own when focus returns.
+  window.addEventListener('blur', () => {
+    state.keys.up = state.keys.down = state.keys.left = state.keys.right = false;
+    joyPointerId = null;
+    resetJoy();
+  });
+
   // ---------- Multiplayer (Trystero, peer-to-peer) ----------
-  // No server: Trystero connects players directly over WebRTC and
-  // handles the connection handshake over free public infrastructure.
+  // No game server: players talk directly to each other over WebRTC.
+  // Trystero's Firebase strategy uses a Firebase Realtime Database only
+  // to carry the initial connection handshake; once connected, players
+  // are peer-to-peer and the game stays a set of static files.
   // Players in the same "room" see each other's fairies; you only see
   // another fairy when you're both standing on the same tile.
-  const TRYSTERO_URL = 'https://esm.sh/trystero@0.24.0/nostr';
-  const TRYSTERO_APP_ID = 'fairyfun-quinn-aaron';
+  const TRYSTERO_URL = 'https://esm.sh/@trystero-p2p/firebase@0.24.0';
+  // The Firebase Realtime Database that carries the handshake. This URL
+  // is not a secret — database rules limit writes to the handshake path.
+  const FIREBASE_DB_URL = 'https://fairy-fun-182dc-default-rtdb.firebaseio.com';
   // Everyone playing Fairy Fun shares one world room.
   const FIXED_ROOM = 'fairyfun-meadow';
-  // Trystero's built-in relay list includes small, often-offline
-  // relays. We pin a curated set of well-known, high-uptime public
-  // Nostr relays so the connection handshake is reliable.
-  const TRYSTERO_RELAYS = [
-    'wss://relay.damus.io',
-    'wss://nos.lol',
-    'wss://relay.snort.social',
-    'wss://offchain.pub',
-    'wss://relay.mostr.pub',
-  ];
+
+  // Peer presence. WebRTC's "peer left" signal is not reliable — a
+  // closed tab or dropped connection can leave a "ghost" fairy behind.
+  // So every player re-broadcasts at least this often, and any peer we
+  // have not heard from for a while is treated as gone and removed.
+  const PEER_HEARTBEAT_MS = 3000;
+  const PEER_STALE_MS = 10000;
 
   let mp = null; // { sendState, peers: Map, selfId } once connected
 
@@ -301,7 +312,20 @@
       && peer.tile.x === state.tile.x && peer.tile.y === state.tile.y;
     peer.el.textContent = fairyEmoji(parseFairyCode(peer.fairy));
     peer.el.style.display = sameTile ? '' : 'none';
-    if (sameTile && peer.pos) placeFairyEl(peer.el, peer.pos);
+    if (sameTile && peer.pos) {
+      if (!peer.placed) {
+        // First placement: snap into position rather than sliding in
+        // from the corner (the CSS transition would otherwise animate
+        // from the element's default 0,0).
+        peer.el.style.transition = 'none';
+        placeFairyEl(peer.el, peer.pos);
+        peer.el.getBoundingClientRect(); // flush layout before re-enabling
+        peer.el.style.transition = '';
+        peer.placed = true;
+      } else {
+        placeFairyEl(peer.el, peer.pos);
+      }
+    }
   }
 
   function myStatePayload() {
@@ -315,6 +339,18 @@
   function broadcastState() {
     if (mp && mp.sendState) {
       try { mp.sendState(myStatePayload()); } catch (e) { /* ignore */ }
+    }
+    lastNetSync = performance.now();
+  }
+
+  // Drop peers we have not heard from recently (ghost fairies).
+  function reapStalePeers(now) {
+    if (!mp) return;
+    for (const [id, peer] of mp.peers) {
+      if (now - (peer.lastSeen || 0) > PEER_STALE_MS) {
+        if (peer.el) peer.el.remove();
+        mp.peers.delete(id);
+      }
     }
   }
 
@@ -344,10 +380,7 @@
       return;
     }
 
-    const tr = trystero.joinRoom(
-      { appId: TRYSTERO_APP_ID, relayConfig: { urls: TRYSTERO_RELAYS } },
-      FIXED_ROOM,
-    );
+    const tr = trystero.joinRoom({ appId: FIREBASE_DB_URL }, FIXED_ROOM);
     const [sendState, getState] = tr.makeAction('state');
     const peers = new Map();
 
@@ -366,11 +399,20 @@
       peer.tile = data.tile;
       peer.pos = data.pos;
       peer.fairy = data.fairy;
+      peer.lastSeen = performance.now();
       renderPeer(id, peer);
       resolveFairyClash(id, data.fairy);
     });
 
     broadcastState();
+
+    // Heartbeat on a wall-clock timer — NOT the animation loop, which
+    // browsers pause for background windows. This keeps an idle player
+    // visible to others and reaps peers who have genuinely gone quiet.
+    setInterval(() => {
+      broadcastState();
+      reapStalePeers(performance.now());
+    }, PEER_HEARTBEAT_MS);
   }
 
   // ---------- Main loop ----------
@@ -400,14 +442,11 @@
       state.pos.y += vy * FAIRY_SPEED * dt;
       const tileChanged = resolveTileTransitions();
       updateFairyPosition();
-      if (tileChanged || now - lastNetSync > 120) {
-        broadcastState();
-        lastNetSync = now;
-      }
+      if (tileChanged || now - lastNetSync > 120) broadcastState();
+    } else if (wasMoving) {
+      // Send one last update the moment the player stops.
+      broadcastState();
     }
-    // The moment the player stops, send one last update so peers see
-    // the exact resting spot.
-    if (wasMoving && !moving) broadcastState();
     wasMoving = moving;
 
     requestAnimationFrame(tick);

@@ -24,9 +24,11 @@ Bright rainbow mostly.
 ### Background music
 
 The game has background music that plays on a loop the whole time the
-game is open. The music is in `Footsteps_On_The_Square.mp3`. The music
-should start the moment you enter the game and keep playing forever
-without interruption, but should stop the moment you exit the game.
+game is open. The music is in `Footsteps_On_The_Square.mp3`. Web
+browsers do not allow sound to play until the player interacts with
+the page, so the music starts the moment the player clicks the "start"
+button on the initial screen. From then on it keeps playing forever
+without interruption, and it stops when the player closes the game.
 
 
 ### Initial screen
@@ -117,10 +119,12 @@ refreshing the page returns the player to the initial screen.
 Fairy Fun supports calm, peaceful multiplayer: players can wander the
 same world and see each other's fairies.
 
-There is no game server. Players are connected directly to each other
-peer-to-peer (over WebRTC) using the Trystero library, which handles
-the connection handshake over free public infrastructure. The game
-itself remains a set of static files.
+There is no game server. Players connect directly to each other
+peer-to-peer (over WebRTC) using the Trystero library. A Firebase
+Realtime Database carries only the brief initial connection handshake;
+once players are connected they talk straight to each other. The game
+itself remains a set of static files — Firebase is a hosted service,
+not a server we run.
 
 For now, everyone who plays Fairy Fun shares a single world room, so
 any two players who are in the fairy world at the same time can see
@@ -133,6 +137,11 @@ friend's fairy is the multiplayer moment.
 If two players happen to have the same randomly chosen appearance, one
 of them automatically re-rolls to a different look so they stay
 visually distinct.
+
+Each player quietly re-broadcasts its presence every few seconds.
+Peer-to-peer disconnections are not always cleanly signalled, so any
+fairy that has gone silent for several seconds is treated as gone and
+removed — this prevents abandoned "ghost" fairies from lingering.
 
 If the peer-to-peer connection cannot be established (no network, or a
 restrictive home network), the game quietly falls back to single
