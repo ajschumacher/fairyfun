@@ -20,7 +20,6 @@
     pos: { x: 0.5, y: 0.5 }, // normalized within tile, (0,0) bottom-left, (1,1) top-right
     tileSet: 'world',         // 'world' (fancy) or 'qworld' (Quinn's sketches)
     fairy: { g: 'f', t: 0 },  // appearance: gender n/f/m, skin tone 0-5 (set on boot)
-    room: null,               // multiplayer room id
     keys: { up: false, down: false, left: false, right: false },
     joy: { active: false, dx: 0, dy: 0 },
     lastT: 0,
@@ -29,8 +28,8 @@
   // ---------- Fairy appearance ----------
   // The fairy is a fairy emoji. We randomly pick a gender presentation
   // (neutral / female / male) and one of six skin tones, so players are
-  // visually distinct in multiplayer. The choice is preserved in the URL
-  // (and localStorage) so it survives a refresh.
+  // visually distinct in multiplayer. The choice is saved in localStorage
+  // so the player keeps the same look across visits.
   const FAIRY_BASE = '\u{1F9DA}';   // fairy
   const ZWJ = '‍';             // zero-width joiner
   const VS16 = '️';            // emoji presentation selector
@@ -75,34 +74,26 @@
     fairy.textContent = fairyEmoji(state.fairy);
   }
 
-  // Resolve the fairy appearance: URL param wins, then localStorage,
-  // then a fresh random pick.
-  function ensureFairy(params) {
-    let f = parseFairyCode(params.get('fairy'));
-    if (!f) {
-      try { f = parseFairyCode(localStorage.getItem('fairyfun.fairy')); } catch (e) { /* ignore */ }
-    }
+  // Resolve the fairy appearance from localStorage, or pick a fresh
+  // random one on the player's first ever visit.
+  function ensureFairy() {
+    let f = null;
+    try { f = parseFairyCode(localStorage.getItem('fairyfun.fairy')); } catch (e) { /* ignore */ }
     if (!f) f = randomFairy();
-    setFairy(f, true);
+    setFairy(f);
   }
 
-  function setFairy(f, skipRouteUpdate) {
+  function setFairy(f) {
     state.fairy = f;
     try { localStorage.setItem('fairyfun.fairy', fairyCode()); } catch (e) { /* ignore */ }
     applyFairyAppearance();
-    if (!skipRouteUpdate) {
-      replaceRoute(currentRoute());
-      broadcastState();
-    }
+    broadcastState();
   }
 
   // ---------- Screen flow ----------
-  let currentScreen = null;
-
   function show(screen) {
     [initialScreen, welcomeScreen, worldScreen].forEach(s => s.classList.add('hidden'));
     screen.classList.remove('hidden');
-    currentScreen = screen;
   }
 
   function startMusic() {
@@ -111,130 +102,21 @@
     if (p && typeof p.catch === 'function') p.catch(() => { /* ignore */ });
   }
 
-  // Browsers block autoplay until user interaction. If the page loads
-  // directly into a non-initial screen via the URL, we kick off music on
-  // the first user interaction of any kind.
-  function ensureMusicOnFirstInteraction() {
-    if (!bgm.paused) return;
-    const kick = () => {
-      startMusic();
-      window.removeEventListener('pointerdown', kick, true);
-      window.removeEventListener('keydown', kick, true);
-      window.removeEventListener('touchstart', kick, true);
-    };
-    window.addEventListener('pointerdown', kick, true);
-    window.addEventListener('keydown', kick, true);
-    window.addEventListener('touchstart', kick, true);
-  }
-
+  // The game flows forward through three screens: initial -> welcome
+  // -> fairy world. The player enters by clicking through; there is no
+  // URL routing.
   startBtn.addEventListener('click', () => {
     startMusic();
-    setRoute(buildWelcomeRoute());
+    show(welcomeScreen);
   });
 
   nextBtn.addEventListener('click', () => {
     state.tile = { ...START_TILE };
     state.pos = { x: 0.5, y: 0.5 };
-    setRoute(buildWorldRoute());
+    show(worldScreen);
+    enterWorld();
+    initMultiplayer();
   });
-
-  // ---------- Routing ----------
-  function buildWorldRoute() {
-    const t = `${state.tile.x},${state.tile.y}`;
-    const p = `${state.pos.x.toFixed(3)},${state.pos.y.toFixed(3)}`;
-    let route = `/world?tile=${t}&pos=${p}`;
-    if (state.tileSet !== 'world') route += `&set=${state.tileSet}`;
-    route += `&fairy=${fairyCode()}`;
-    return route;
-  }
-
-  function buildWelcomeRoute() {
-    return `/welcome?fairy=${fairyCode()}`;
-  }
-
-  function buildInitialRoute() {
-    return `/?fairy=${fairyCode()}`;
-  }
-
-  // The route that represents the screen the player is on right now.
-  function currentRoute() {
-    if (currentScreen === worldScreen) return buildWorldRoute();
-    if (currentScreen === welcomeScreen) return buildWelcomeRoute();
-    return buildInitialRoute();
-  }
-
-  function setRoute(path) {
-    const next = '#' + path;
-    if (location.hash !== next) {
-      location.hash = next; // triggers hashchange → applyRoute
-    } else {
-      applyRoute();
-    }
-  }
-
-  function replaceRoute(path) {
-    const next = '#' + path;
-    if (location.hash !== next) {
-      history.replaceState(null, '', next);
-    }
-  }
-
-  function parseRoute() {
-    const raw = location.hash.replace(/^#/, '') || '/';
-    const [pathname, query = ''] = raw.split('?');
-    const params = new URLSearchParams(query);
-    return { pathname, params };
-  }
-
-  function applyRoute() {
-    const { pathname, params } = parseRoute();
-    ensureFairy(params);
-
-    if (pathname === '/welcome') {
-      leaveMultiplayer();
-      show(welcomeScreen);
-      replaceRoute(buildWelcomeRoute());
-      ensureMusicOnFirstInteraction();
-      stopWorldLoop();
-      return;
-    }
-    if (pathname === '/world') {
-      const tileStr = params.get('tile');
-      const posStr = params.get('pos');
-      const setStr = params.get('set');
-      let tile = { ...START_TILE };
-      let pos = { x: 0.5, y: 0.5 };
-      if (tileStr) {
-        const [tx, ty] = tileStr.split(',').map(Number);
-        if (Number.isFinite(tx) && Number.isFinite(ty)
-            && tx >= 1 && tx <= WORLD_W && ty >= 1 && ty <= WORLD_H) {
-          tile = { x: tx, y: ty };
-        }
-      }
-      if (posStr) {
-        const [px, py] = posStr.split(',').map(Number);
-        if (Number.isFinite(px) && Number.isFinite(py)) {
-          pos = { x: Math.min(1, Math.max(0, px)), y: Math.min(1, Math.max(0, py)) };
-        }
-      }
-      state.tile = tile;
-      state.pos = pos;
-      state.tileSet = setStr === 'qworld' ? 'qworld' : 'world';
-      state.room = FIXED_ROOM;
-      show(worldScreen);
-      replaceRoute(buildWorldRoute());
-      ensureMusicOnFirstInteraction();
-      enterWorld();
-      initMultiplayer();
-      return;
-    }
-    leaveMultiplayer();
-    show(initialScreen);
-    replaceRoute(buildInitialRoute());
-    stopWorldLoop();
-  }
-
-  window.addEventListener('hashchange', applyRoute);
 
   // ---------- World ----------
   function tileSrc(x, y) {
@@ -246,7 +128,6 @@
   function toggleTileSet() {
     state.tileSet = state.tileSet === 'qworld' ? 'world' : 'qworld';
     loadTile();
-    replaceRoute(buildWorldRoute());
   }
 
   // Triple-tap/click the fairy to toggle the tile set.
@@ -275,10 +156,6 @@
       state.lastT = performance.now();
       requestAnimationFrame(tick);
     }
-  }
-
-  function stopWorldLoop() {
-    rafRunning = false;
   }
 
   function showJoystickIfTouch() {
@@ -403,11 +280,11 @@
     'wss://relay.damus.io',
     'wss://nos.lol',
     'wss://relay.snort.social',
-    'wss://nostr.mom',
+    'wss://offchain.pub',
     'wss://relay.mostr.pub',
   ];
 
-  let mp = null; // { roomName, sendState, peers: Map, leave(), selfId }
+  let mp = null; // { sendState, peers: Map, selfId } once connected
 
   function renderAllPeers() {
     if (!mp) return;
@@ -458,11 +335,7 @@
   }
 
   async function initMultiplayer() {
-    if (!state.room) return;
-    if (mp && mp.roomName === state.room) return; // already connected
-    leaveMultiplayer();
-
-    const roomName = state.room;
+    if (mp) return; // already connected
     let trystero;
     try {
       trystero = await import(TRYSTERO_URL);
@@ -470,23 +343,15 @@
       console.warn('Fairy Fun: multiplayer unavailable, playing solo.', e);
       return;
     }
-    // The route may have changed while the library was loading.
-    if (state.room !== roomName || currentScreen !== worldScreen) return;
 
     const tr = trystero.joinRoom(
       { appId: TRYSTERO_APP_ID, relayConfig: { urls: TRYSTERO_RELAYS } },
-      roomName,
+      FIXED_ROOM,
     );
     const [sendState, getState] = tr.makeAction('state');
     const peers = new Map();
 
-    mp = {
-      roomName,
-      sendState,
-      peers,
-      selfId: trystero.selfId,
-      leave: () => { try { tr.leave(); } catch (e) { /* ignore */ } },
-    };
+    mp = { sendState, peers, selfId: trystero.selfId };
 
     tr.onPeerJoin(() => broadcastState());
     tr.onPeerLeave((id) => {
@@ -508,18 +373,8 @@
     broadcastState();
   }
 
-  function leaveMultiplayer() {
-    if (!mp) return;
-    mp.leave();
-    for (const peer of mp.peers.values()) {
-      if (peer.el) peer.el.remove();
-    }
-    mp = null;
-  }
-
   // ---------- Main loop ----------
   let rafRunning = false;
-  let lastUrlSync = 0;
   let lastNetSync = 0;
   let wasMoving = false;
   function tick(now) {
@@ -545,21 +400,14 @@
       state.pos.y += vy * FAIRY_SPEED * dt;
       const tileChanged = resolveTileTransitions();
       updateFairyPosition();
-      if (tileChanged || now - lastUrlSync > 500) {
-        replaceRoute(buildWorldRoute());
-        lastUrlSync = now;
-      }
       if (tileChanged || now - lastNetSync > 120) {
         broadcastState();
         lastNetSync = now;
       }
     }
     // The moment the player stops, send one last update so peers see
-    // the exact resting spot and the URL is exactly right.
-    if (wasMoving && !moving) {
-      replaceRoute(buildWorldRoute());
-      broadcastState();
-    }
+    // the exact resting spot.
+    if (wasMoving && !moving) broadcastState();
     wasMoving = moving;
 
     requestAnimationFrame(tick);
@@ -618,6 +466,7 @@
   tileImg.addEventListener('load', updateFairyPosition);
   window.addEventListener('resize', updateFairyPosition);
 
-  // Boot: apply the route from the URL.
-  applyRoute();
+  // Boot: pick the fairy's look and show the initial screen.
+  ensureFairy();
+  show(initialScreen);
 })();

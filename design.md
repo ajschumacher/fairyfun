@@ -65,12 +65,12 @@ world at tile (7, 2).
 The fairy world is an explorable universe that the player flies/walks
 their fairy around.
 
-The fairy is represented by a fairy emoji for the time being. When a
-player first loads the game, their fairy's appearance is randomly
+The fairy is represented by a fairy emoji for the time being. On a
+player's first ever visit, their fairy's appearance is randomly
 chosen: a gender presentation (neutral, female, or male) and one of
 six skin tones. This keeps players visually distinct in multiplayer.
-The choice is preserved in the URL (and the browser's local storage)
-so it survives a refresh.
+The choice is saved in the browser's local storage so the player
+keeps the same look on later visits.
 
 The player controls the fairy's movement with arrow keys when a
 keyboard is available, or with an on-screen "joystick" for screen-only
@@ -104,25 +104,12 @@ the fairy. Triple-tapping again switches back. There is no visible UI
 for this — it is an easter egg.
 
 
-### Screen persistence via URL
+### Screen flow
 
-Each screen has its own URL hash so refreshing the page keeps the
-player on the same screen:
-
- * `#/` — initial screen
- * `#/welcome` — welcome screen
- * `#/world?tile=X,Y&pos=PX,PY` — fairy world at tile (X, Y) with the
-   fairy at normalized position (PX, PY) within the tile. If sketch
-   mode is active, `&set=qworld` is appended. The world URL also
-   carries `&fairy=...` (the fairy's appearance). Every screen's URL
-   carries `&fairy=...`.
-
-The fairy world URL is kept in sync while the player explores, so a
-refresh lands them on the same tile in roughly the same spot.
-
-Browsers block audio from auto-playing until the player interacts with
-the page. If the page is reloaded directly into the welcome or fairy
-world screen, the music starts on the next click, tap, or key press.
+The game flows forward through its three screens — initial, welcome,
+fairy world — and the player always enters by clicking through from
+the start. There is no URL routing: the address never changes, and
+refreshing the page returns the player to the initial screen.
 
 
 ### Multiplayer
