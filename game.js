@@ -280,7 +280,7 @@
     'wss://relay.damus.io',
     'wss://nos.lol',
     'wss://relay.snort.social',
-    'wss://nostr.mom',
+    'wss://offchain.pub',
     'wss://relay.mostr.pub',
   ];
 
