@@ -6,10 +6,15 @@
 
   const initialScreen = document.getElementById('initial-screen');
   const welcomeScreen = document.getElementById('welcome-screen');
+  const connectingScreen = document.getElementById('connecting-screen');
   const chooserScreen = document.getElementById('chooser-screen');
   const worldScreen = document.getElementById('world-screen');
   const startBtn = document.getElementById('start-btn');
   const nextBtn = document.getElementById('next-btn');
+  const connectingSpinner = document.getElementById('connecting-spinner');
+  const connectingMessage = document.getElementById('connecting-message');
+  const connectingRetryBtn = document.getElementById('connecting-retry-btn');
+  const connectingNextBtn = document.getElementById('connecting-next-btn');
   const fairyGrid = document.getElementById('fairy-grid');
   const chooserNextBtn = document.getElementById('chooser-next-btn');
   const tileImg = document.getElementById('tile-img');
@@ -77,7 +82,7 @@
 
   // ---------- Screen flow ----------
   function show(screen) {
-    [initialScreen, welcomeScreen, chooserScreen, worldScreen]
+    [initialScreen, welcomeScreen, connectingScreen, chooserScreen, worldScreen]
       .forEach(s => s.classList.add('hidden'));
     screen.classList.remove('hidden');
   }
@@ -97,6 +102,48 @@
   });
 
   nextBtn.addEventListener('click', () => {
+    enterConnectingScreen();
+  });
+
+  // ---------- Entering the fairy world ----------
+  // Before the fairy chooser, this screen reaches out to the shared
+  // multiplayer world and shows the player how the connection is
+  // going: 'idle' before the first attempt, then 'connecting' and
+  // finally 'connected' or 'failed'.
+  let connectionState = 'idle';
+
+  function setConnectionState(s) {
+    connectionState = s;
+    renderConnectionStatus();
+  }
+
+  function renderConnectionStatus() {
+    if (connectionState === 'connected') {
+      connectingMessage.textContent = 'We have entered the shared fairy world';
+    } else if (connectionState === 'failed') {
+      connectingMessage.textContent =
+        'Unable to reach shared fairy world. You can still fly solo.';
+    } else {
+      connectingMessage.textContent = 'Communicating with shared fairy world...';
+    }
+    const connecting = connectionState === 'connecting';
+    connectingSpinner.classList.toggle('hidden', !connecting);
+    connectingRetryBtn.classList.toggle('hidden', connectionState !== 'failed');
+    // The "next" button waits for the outcome, then lets the player
+    // continue whether or not the shared world was reached.
+    connectingNextBtn.disabled = connecting;
+  }
+
+  function enterConnectingScreen() {
+    show(connectingScreen);
+    initMultiplayer();
+  }
+
+  connectingRetryBtn.addEventListener('click', () => {
+    initMultiplayer();
+  });
+
+  connectingNextBtn.addEventListener('click', () => {
     show(chooserScreen);
     openChooser();
   });
@@ -112,9 +159,9 @@
   function openChooser() {
     chooserSelection = null;
     chooserNextBtn.disabled = true;
+    // Multiplayer was already contacted on the "Entering the fairy
+    // world" screen, so the grid can hide fairies already in use.
     renderFairyGrid();
-    // Connect now so the grid can hide fairies that are already in use.
-    initMultiplayer();
   }
 
   // Fairy codes currently in use by other players in the world.
@@ -352,8 +399,12 @@
   // have not heard from for a while is treated as gone and removed.
   const PEER_HEARTBEAT_MS = 3000;
   const PEER_STALE_MS = 10000;
+  // How long to wait for the library to load and the handshake server
+  // to answer before giving up and offering single player.
+  const CONNECT_TIMEOUT_MS = 8000;
 
   let mp = null; // { sendState, peers: Map, selfId } once connected
+  let mpConnecting = false; // a connection attempt is in flight
 
   function renderAllPeers() {
     if (!mp) return;
@@ -418,20 +469,61 @@
     if (removed) refreshChooserIfOpen();
   }
 
+  // Dynamic import with a timeout, so a hung CDN request cannot leave
+  // the player staring at the spinner forever.
+  function importWithTimeout(url, ms) {
+    return Promise.race([
+      import(url),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('import timed out')), ms)),
+    ]);
+  }
+
+  // Confirm the Firebase Realtime Database that carries the handshake
+  // is reachable. A 'no-cors' request resolves on any HTTP response
+  // (even a permission-denied one) and rejects only when the network
+  // round-trip fails — exactly the reachability signal we want.
+  function probeFirebase(ms) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    return fetch(FIREBASE_DB_URL + '/.json',
+      { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal })
+      .finally(() => clearTimeout(timer));
+  }
+
   async function initMultiplayer() {
-    if (mp) return; // already connected
+    if (mp) { setConnectionState('connected'); return; }
+    if (mpConnecting) return; // an attempt is already in flight
+    mpConnecting = true;
+    setConnectionState('connecting');
+
+    // Load the peer-to-peer library and confirm the handshake server
+    // is reachable, in parallel. Multiplayer needs both.
     let trystero;
     try {
-      trystero = await import(TRYSTERO_URL);
+      [trystero] = await Promise.all([
+        importWithTimeout(TRYSTERO_URL, CONNECT_TIMEOUT_MS),
+        probeFirebase(CONNECT_TIMEOUT_MS),
+      ]);
     } catch (e) {
       console.warn('Fairy Fun: multiplayer unavailable, playing solo.', e);
+      mpConnecting = false;
+      setConnectionState('failed');
       return;
     }
 
-    const tr = trystero.joinRoom({ appId: FIREBASE_DB_URL }, FIXED_ROOM);
-    const [sendState, getState] = tr.makeAction('state');
-    const peers = new Map();
+    let tr, sendState, getState;
+    try {
+      tr = trystero.joinRoom({ appId: FIREBASE_DB_URL }, FIXED_ROOM);
+      [sendState, getState] = tr.makeAction('state');
+    } catch (e) {
+      console.warn('Fairy Fun: could not join the fairy world, playing solo.', e);
+      mpConnecting = false;
+      setConnectionState('failed');
+      return;
+    }
 
+    const peers = new Map();
     mp = { sendState, peers, selfId: trystero.selfId };
 
     tr.onPeerJoin(() => broadcastState());
@@ -462,6 +554,9 @@
       broadcastState();
       reapStalePeers(performance.now());
     }, PEER_HEARTBEAT_MS);
+
+    mpConnecting = false;
+    setConnectionState('connected');
   }
 
   // ---------- Main loop ----------

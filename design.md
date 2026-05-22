@@ -58,14 +58,42 @@ There should be no cheating and just be yourself.
 
 Below this text, there is the "next" button, `images/next.png`.
 
-When the player clicks on the "next" button, they go to the fairy
-chooser screen.
+When the player clicks on the "next" button, they go to the Entering
+the fairy world screen.
+
+
+### Entering the fairy world
+
+Between the welcome screen and the fairy chooser, the game reaches
+out to the shared multiplayer world and shows the player how the
+connection is going.
+
+At the top is the headline "Entering the fairy world". While the
+connection is being made, a spinner turns above the text
+"Communicating with shared fairy world...".
+
+If the shared world is reached, the text becomes "We have entered
+the shared fairy world". If it cannot be reached, the text becomes
+"Unable to reach shared fairy world. You can still fly solo." along
+with a "Try to contact shared fairy world again" button that makes a
+fresh attempt.
+
+Reaching the shared world means the peer-to-peer library has loaded
+and the Firebase handshake database answered — the player is in the
+shared room. It is not a promise that other players are online right
+now; the shared world is often simply empty.
+
+The "next" button (the same one used on the welcome screen) is
+inactive while the connection is still being attempted, and becomes
+active once the outcome is known. Clicking it goes to the fairy
+chooser screen — whether or not the shared world was reached, the
+player can always continue.
 
 
 ### Fairy chooser
 
-The fairy chooser screen comes between the welcome screen and the
-fairy world. At the top it says "Choose your fairy". Below that is a
+The fairy chooser screen comes just before the fairy world. At the
+top it says "Choose your fairy". Below that is a
 grid of every possible fairy emoji: rows run top to bottom as female,
 neutral, male; columns run left to right by skin tone, yellow first
 and then light to dark.
@@ -128,9 +156,9 @@ for this — it is an easter egg.
 
 ### Screen flow
 
-The game flows forward through its four screens — initial, welcome,
-fairy chooser, fairy world — and the player always enters by clicking
-through from the start. There is no URL routing: the address never
+The game flows forward through its five screens — initial, welcome,
+entering the fairy world, fairy chooser, fairy world — and the player
+always enters by clicking through from the start. There is no URL routing: the address never
 changes, and refreshing the page returns the player to the initial
 screen.
 
@@ -164,8 +192,9 @@ fairy that has gone silent for several seconds is treated as gone and
 removed — this prevents abandoned "ghost" fairies from lingering.
 
 If the peer-to-peer connection cannot be established (no network, or a
-restrictive home network), the game quietly falls back to single
-player.
+restrictive home network), the game falls back to single player — and
+the Entering the fairy world screen tells the player when this has
+happened.
 
 
 ## Future plans (not implemented yet)
