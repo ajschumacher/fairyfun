@@ -390,6 +390,14 @@
   // The Firebase Realtime Database that carries the handshake. This URL
   // is not a secret — database rules limit writes to the handshake path.
   const FIREBASE_DB_URL = 'https://fairy-fun-182dc-default-rtdb.firebaseio.com';
+  // Trystero@0.24.0 depends on firebase@^12.12.1, which esm.sh resolves to
+  // firebase@12.13.0. Both these wrapper URLs and Trystero's range-URL
+  // wrappers re-export from the same firebase@12.13.0/es2022/*.mjs modules,
+  // so getApps() from our imports sees the same app registry as Trystero.
+  // Update these when bumping TRYSTERO_URL to a version that uses a newer
+  // Firebase major.
+  const FIREBASE_APP_URL = 'https://esm.sh/firebase@12.13.0/app';
+  const FIREBASE_DB_URL_MOD = 'https://esm.sh/firebase@12.13.0/database';
   // Everyone playing Fairy Fun shares one world room.
   const FIXED_ROOM = 'fairyfun-meadow-2';
 
@@ -479,35 +487,35 @@
     ]);
   }
 
-  // Probe internet connectivity via a fetch to a neutral endpoint. We
-  // deliberately avoid fetching firebaseio.com — doing so creates an
-  // HTTP/2 connection pool on that host and silently blocks Trystero's
-  // subsequent WebSocket upgrade to the same host.
-  function probeInternet(ms) {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), ms);
-    return fetch('https://clients3.google.com/generate_204',
-      { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal })
-      .then(() => clearTimeout(timer))
-      .catch(e => { clearTimeout(timer); throw e; });
-  }
-
   async function initMultiplayer() {
     if (mp) { setConnectionState('connected'); return; }
     if (mpConnecting) return; // an attempt is already in flight
     mpConnecting = true;
     setConnectionState('connecting');
 
-    // Load the peer-to-peer library and verify internet connectivity in
-    // parallel. Either failing means multiplayer is unavailable.
+    // Load Trystero first. Its Firebase dependencies are fetched as part of
+    // this import and land in the browser's module cache.
     let trystero;
     try {
-      [trystero] = await Promise.all([
-        importWithTimeout(TRYSTERO_URL, CONNECT_TIMEOUT_MS),
-        probeInternet(CONNECT_TIMEOUT_MS),
-      ]);
+      trystero = await importWithTimeout(TRYSTERO_URL, CONNECT_TIMEOUT_MS);
     } catch (e) {
       console.warn('Fairy Fun: multiplayer unavailable, playing solo.', e);
+      mpConnecting = false;
+      setConnectionState('failed');
+      return;
+    }
+
+    // Now import the Firebase app and database modules. These wrapper URLs
+    // re-export from the same firebase@12.13.0/es2022/*.mjs that Trystero's
+    // own imports resolve to, so getApps() below sees Trystero's app registry.
+    let fbApp, fbDb;
+    try {
+      [fbApp, fbDb] = await Promise.all([
+        import(FIREBASE_APP_URL),
+        import(FIREBASE_DB_URL_MOD),
+      ]);
+    } catch (e) {
+      console.warn('Fairy Fun: Firebase SDK unavailable, playing solo.', e);
       mpConnecting = false;
       setConnectionState('failed');
       return;
@@ -519,6 +527,30 @@
       [sendState, getState] = tr.makeAction('state');
     } catch (e) {
       console.warn('Fairy Fun: could not join the fairy world, playing solo.', e);
+      mpConnecting = false;
+      setConnectionState('failed');
+      return;
+    }
+
+    // Verify Firebase's WebSocket is actually open using its own native
+    // .info/connected signal — true only when the SDK has a live connection.
+    // joinRoom() initialised the Firebase app; find it in the shared registry.
+    try {
+      await new Promise((resolve, reject) => {
+        const dbUrl = FIREBASE_DB_URL.replace(/\/$/, '');
+        const app = fbApp.getApps().find(
+          a => a.options && a.options.databaseURL &&
+               a.options.databaseURL.replace(/\/$/, '') === dbUrl
+        );
+        if (!app) { reject(new Error('Firebase app not in shared registry')); return; }
+        const db = fbDb.getDatabase(app);
+        const timer = setTimeout(() => { unsub(); reject(new Error('Firebase .info/connected timeout')); }, CONNECT_TIMEOUT_MS);
+        const unsub = fbDb.onValue(fbDb.ref(db, '.info/connected'), snap => {
+          if (snap.val() === true) { clearTimeout(timer); unsub(); resolve(); }
+        });
+      });
+    } catch (e) {
+      console.warn('Fairy Fun: Firebase unreachable, playing solo.', e);
       mpConnecting = false;
       setConnectionState('failed');
       return;
