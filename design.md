@@ -36,7 +36,7 @@ without interruption, and it stops when the player closes the game.
 When a player first goes to the game, they see the Fairy Fun logo at
 the top of the screen, centered. This is `images/fairyfun.png`. Below
 that is the "start" button, `images/start.png`. Below that is the text
-"Idea by Quinn. Made by Quinn and Aaron. Version 2."
+"Idea by Quinn. Made by Quinn and Aaron. Version 4."
 
 When the player clicks on the "start" button, it brings them to the
 welcome screen.
