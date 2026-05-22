@@ -344,7 +344,7 @@
   // is not a secret — database rules limit writes to the handshake path.
   const FIREBASE_DB_URL = 'https://fairy-fun-182dc-default-rtdb.firebaseio.com';
   // Everyone playing Fairy Fun shares one world room.
-  const FIXED_ROOM = 'fairyfun-meadow';
+  const FIXED_ROOM = 'fairyfun-meadow-2';
 
   // Peer presence. WebRTC's "peer left" signal is not reliable — a
   // closed tab or dropped connection can leave a "ghost" fairy behind.
