@@ -479,17 +479,32 @@
     ]);
   }
 
+  // Probe whether Firebase is reachable by opening a WebSocket (not fetch,
+  // which would create an HTTP/2 pool that blocks Trystero's own WebSocket).
+  function probeFirebaseWS(httpsUrl, ms) {
+    return new Promise((resolve, reject) => {
+      const wsUrl = httpsUrl.replace('https://', 'wss://') + '/.ws?v=5';
+      const ws = new WebSocket(wsUrl);
+      const timer = setTimeout(() => { ws.close(); reject(new Error('Firebase WS timeout')); }, ms);
+      ws.onopen = () => { clearTimeout(timer); ws.close(); resolve(); };
+      ws.onerror = () => { clearTimeout(timer); reject(new Error('Firebase WS error')); };
+    });
+  }
+
   async function initMultiplayer() {
     if (mp) { setConnectionState('connected'); return; }
     if (mpConnecting) return; // an attempt is already in flight
     mpConnecting = true;
     setConnectionState('connecting');
 
-    // Load the peer-to-peer library. Any network error or timeout here
-    // means multiplayer is unavailable.
+    // Load the peer-to-peer library and verify Firebase is reachable in
+    // parallel. Either failing means multiplayer is unavailable.
     let trystero;
     try {
-      trystero = await importWithTimeout(TRYSTERO_URL, CONNECT_TIMEOUT_MS);
+      [trystero] = await Promise.all([
+        importWithTimeout(TRYSTERO_URL, CONNECT_TIMEOUT_MS),
+        probeFirebaseWS(FIREBASE_DB_URL, CONNECT_TIMEOUT_MS),
+      ]);
     } catch (e) {
       console.warn('Fairy Fun: multiplayer unavailable, playing solo.', e);
       mpConnecting = false;
