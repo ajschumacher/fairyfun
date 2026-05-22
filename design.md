@@ -79,9 +79,8 @@ with a "Try to contact shared fairy world again" button that makes a
 fresh attempt.
 
 Reaching the shared world means the peer-to-peer library has loaded
-and the Firebase handshake database answered — the player is in the
-shared room. It is not a promise that other players are online right
-now; the shared world is often simply empty.
+and joined the shared room. It is not a promise that other players
+are online right now; the shared world is often simply empty.
 
 The "next" button (the same one used on the welcome screen) is
 inactive while the connection is still being attempted, and becomes

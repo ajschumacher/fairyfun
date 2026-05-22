@@ -93,9 +93,9 @@
     if (p && typeof p.catch === 'function') p.catch(() => { /* ignore */ });
   }
 
-  // The game flows forward through four screens: initial -> welcome ->
-  // fairy chooser -> fairy world. The player enters by clicking through;
-  // there is no URL routing.
+  // The game flows forward through five screens: initial -> welcome ->
+  // entering the fairy world -> fairy chooser -> fairy world. The player
+  // enters by clicking through; there is no URL routing.
   startBtn.addEventListener('click', () => {
     startMusic();
     show(welcomeScreen);
@@ -479,32 +479,17 @@
     ]);
   }
 
-  // Confirm the Firebase Realtime Database that carries the handshake
-  // is reachable. A 'no-cors' request resolves on any HTTP response
-  // (even a permission-denied one) and rejects only when the network
-  // round-trip fails — exactly the reachability signal we want.
-  function probeFirebase(ms) {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), ms);
-    return fetch(FIREBASE_DB_URL + '/.json',
-      { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal })
-      .finally(() => clearTimeout(timer));
-  }
-
   async function initMultiplayer() {
     if (mp) { setConnectionState('connected'); return; }
     if (mpConnecting) return; // an attempt is already in flight
     mpConnecting = true;
     setConnectionState('connecting');
 
-    // Load the peer-to-peer library and confirm the handshake server
-    // is reachable, in parallel. Multiplayer needs both.
+    // Load the peer-to-peer library. Any network error or timeout here
+    // means multiplayer is unavailable.
     let trystero;
     try {
-      [trystero] = await Promise.all([
-        importWithTimeout(TRYSTERO_URL, CONNECT_TIMEOUT_MS),
-        probeFirebase(CONNECT_TIMEOUT_MS),
-      ]);
+      trystero = await importWithTimeout(TRYSTERO_URL, CONNECT_TIMEOUT_MS);
     } catch (e) {
       console.warn('Fairy Fun: multiplayer unavailable, playing solo.', e);
       mpConnecting = false;
