@@ -479,16 +479,17 @@
     ]);
   }
 
-  // Probe whether Firebase is reachable by opening a WebSocket (not fetch,
-  // which would create an HTTP/2 pool that blocks Trystero's own WebSocket).
-  function probeFirebaseWS(httpsUrl, ms) {
-    return new Promise((resolve, reject) => {
-      const wsUrl = httpsUrl.replace('https://', 'wss://') + '/.ws?v=5';
-      const ws = new WebSocket(wsUrl);
-      const timer = setTimeout(() => { ws.close(); reject(new Error('Firebase WS timeout')); }, ms);
-      ws.onopen = () => { clearTimeout(timer); ws.close(); resolve(); };
-      ws.onerror = () => { clearTimeout(timer); reject(new Error('Firebase WS error')); };
-    });
+  // Probe internet connectivity via a fetch to a neutral endpoint. We
+  // deliberately avoid fetching firebaseio.com — doing so creates an
+  // HTTP/2 connection pool on that host and silently blocks Trystero's
+  // subsequent WebSocket upgrade to the same host.
+  function probeInternet(ms) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    return fetch('https://clients3.google.com/generate_204',
+      { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal })
+      .then(() => clearTimeout(timer))
+      .catch(e => { clearTimeout(timer); throw e; });
   }
 
   async function initMultiplayer() {
@@ -497,13 +498,13 @@
     mpConnecting = true;
     setConnectionState('connecting');
 
-    // Load the peer-to-peer library and verify Firebase is reachable in
+    // Load the peer-to-peer library and verify internet connectivity in
     // parallel. Either failing means multiplayer is unavailable.
     let trystero;
     try {
       [trystero] = await Promise.all([
         importWithTimeout(TRYSTERO_URL, CONNECT_TIMEOUT_MS),
-        probeFirebaseWS(FIREBASE_DB_URL, CONNECT_TIMEOUT_MS),
+        probeInternet(CONNECT_TIMEOUT_MS),
       ]);
     } catch (e) {
       console.warn('Fairy Fun: multiplayer unavailable, playing solo.', e);
