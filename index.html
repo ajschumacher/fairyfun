@@ -30,6 +30,18 @@
   </button>
 </div>
 
+<div id="connecting-screen" class="screen hidden">
+  <p class="connecting-title">Entering the fairy world</p>
+  <div class="connecting-status">
+    <div id="connecting-spinner" class="spinner" aria-hidden="true"></div>
+    <p id="connecting-message" role="status">Communicating with shared fairy world...</p>
+  </div>
+  <button id="connecting-retry-btn" class="text-btn hidden">Try to contact shared fairy world again</button>
+  <button id="connecting-next-btn" class="img-btn" aria-label="Next" disabled>
+    <img src="images/next.png" alt="Next">
+  </button>
+</div>
+
 <div id="chooser-screen" class="screen hidden">
   <p class="chooser-title">Choose your fairy</p>
   <div id="fairy-grid"></div>
