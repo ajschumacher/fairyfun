@@ -78,9 +78,10 @@ the shared fairy world". If it cannot be reached, the text becomes
 with a "Try to contact shared fairy world again" button that makes a
 fresh attempt.
 
-Reaching the shared world means the peer-to-peer library has loaded
-and joined the shared room. It is not a promise that other players
-are online right now; the shared world is often simply empty.
+Reaching the shared world means the realtime database library has
+loaded and the database has reported itself connected — the player is
+in the shared room. It is not a promise that other players are online
+right now; the shared world is often simply empty.
 
 The "next" button (the same one used on the welcome screen) is
 inactive while the connection is still being attempted, and becomes
@@ -167,12 +168,10 @@ screen.
 Fairy Fun supports calm, peaceful multiplayer: players can wander the
 same world and see each other's fairies.
 
-There is no game server. Players connect directly to each other
-peer-to-peer (over WebRTC) using the Trystero library. A Firebase
-Realtime Database carries only the brief initial connection handshake;
-once players are connected they talk straight to each other. The game
-itself remains a set of static files — Firebase is a hosted service,
-not a server we run.
+There is no game server. Each player publishes their presence — fairy,
+tile, position — to a shared Firebase Realtime Database, and listens
+to the same path for everyone else. The game itself remains a set of
+static files; Firebase is a hosted service, not a server we run.
 
 For now, everyone who plays Fairy Fun shares a single world room, so
 any two players who are in the fairy world at the same time can see
@@ -185,15 +184,13 @@ friend's fairy is the multiplayer moment.
 Players keep their fairies visually distinct by choosing from a grid
 that hides fairies already in use (see the fairy chooser, above).
 
-Each player quietly re-broadcasts its presence every few seconds.
-Peer-to-peer disconnections are not always cleanly signalled, so any
-fairy that has gone silent for several seconds is treated as gone and
-removed — this prevents abandoned "ghost" fairies from lingering.
+When a player leaves — closing the tab, losing the network, or simply
+walking away — the database itself removes their presence node, so
+abandoned "ghost" fairies do not linger.
 
-If the peer-to-peer connection cannot be established (no network, or a
-restrictive home network), the game falls back to single player — and
-the Entering the fairy world screen tells the player when this has
-happened.
+If the database cannot be reached (no network, or a blocked
+connection), the game falls back to single player — and the Entering
+the fairy world screen tells the player when this has happened.
 
 
 ## Future plans (not implemented yet)
