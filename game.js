@@ -256,6 +256,7 @@
     loadTile();
     updateFairyPosition();
     showJoystickIfTouch();
+    startIdleWatch();
     if (!rafRunning) {
       rafRunning = true;
       state.lastT = performance.now();
@@ -405,6 +406,12 @@
   // How long to wait for the database library to load and the handshake
   // to succeed before giving up and offering single player.
   const CONNECT_TIMEOUT_MS = 8000;
+  // How long a player can stand still in the world before we assume the
+  // tab was left open and abandoned. At that point we remove their fairy
+  // from the shared world, leave the connection, and bounce back to the
+  // welcome screen. This keeps idle tabs from littering the world with
+  // stale fairies that never move and never disconnect.
+  const IDLE_TIMEOUT_MS = 60 * 60 * 1000; // one hour
 
   // Module-level caches so that retrying after a failure does not
   // re-import or re-initialize when the previous attempt got partway.
@@ -561,8 +568,9 @@
     fb.db.onDisconnect(selfRef).remove();
 
     // Watch the players list. The snapshot is the source of truth, so
-    // we add / update / remove peers to match.
-    fb.db.onValue(playersRef, (snap) => {
+    // we add / update / remove peers to match. Keep the unsubscribe so
+    // we can stop listening when we leave the world.
+    mp.unsubPlayers = fb.db.onValue(playersRef, (snap) => {
       const data = snap.val() || {};
       // Drop peers that are no longer in the snapshot.
       for (const [id, peer] of peers) {
@@ -592,6 +600,55 @@
     broadcastState();
   }
 
+  // Leave the shared world: stop listening, cancel the queued
+  // disconnect-cleanup and remove our presence node now, and clear away
+  // any peer fairies. We deliberately leave the Firebase app and modules
+  // cached so a later re-entry can reconnect without re-importing.
+  function leaveMultiplayer() {
+    if (!mp) return;
+    try { if (mp.unsubPlayers) mp.unsubPlayers(); } catch (e) { /* ignore */ }
+    try { fb.db.onDisconnect(mp.selfRef).cancel(); } catch (e) { /* ignore */ }
+    try { fb.db.remove(mp.selfRef); } catch (e) { /* ignore */ }
+    for (const [, peer] of mp.peers) {
+      if (peer.el) peer.el.remove();
+    }
+    mp = null;
+  }
+
+  // ---------- Idle timeout ----------
+  // The world watches for inactivity: any movement marks the player
+  // active, and if an hour passes with no movement we tear down the
+  // shared-world connection and send the player back to the welcome
+  // screen. A backgrounded/abandoned tab counts as inactive too.
+  let lastActivityT = 0;
+  let idleTimer = null;
+
+  function markActivity() {
+    lastActivityT = Date.now();
+  }
+
+  function startIdleWatch() {
+    markActivity();
+    if (idleTimer) return;
+    // Checking once a minute is plenty for an hour-long timeout and
+    // keeps us robust to background-tab timer throttling.
+    idleTimer = setInterval(() => {
+      if (Date.now() - lastActivityT >= IDLE_TIMEOUT_MS) goIdle();
+    }, 60 * 1000);
+  }
+
+  function stopIdleWatch() {
+    if (idleTimer) { clearInterval(idleTimer); idleTimer = null; }
+  }
+
+  function goIdle() {
+    stopIdleWatch();
+    rafRunning = false;     // halt the world loop
+    inWorld = false;        // we no longer belong in the shared world
+    leaveMultiplayer();     // remove our fairy and drop the connection
+    show(welcomeScreen);    // back to "Welcome to FAIRY FUN!"
+  }
+
   // ---------- Main loop ----------
   let rafRunning = false;
   let lastNetSync = 0;
@@ -615,6 +672,7 @@
 
     const moving = (vx !== 0 || vy !== 0);
     if (moving) {
+      markActivity();
       state.pos.x += vx * FAIRY_SPEED * dt;
       state.pos.y += vy * FAIRY_SPEED * dt;
       const tileChanged = resolveTileTransitions();
