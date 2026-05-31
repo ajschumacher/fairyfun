@@ -388,8 +388,15 @@
   //
   // Players in the same room see each other's fairies; you only see
   // another fairy when you're both standing on the same tile.
-  const FIREBASE_APP_MOD = 'https://esm.sh/firebase@12.13.0/app';
-  const FIREBASE_DB_MOD  = 'https://esm.sh/firebase@12.13.0/database';
+  // Firebase's own modular CDN builds. These are the supported way to
+  // load Firebase without a bundler: each module shares the one
+  // @firebase/app instance, so getDatabase() can find the database
+  // service that firebase-database.js registers. (Loading the same
+  // modules as two independent esm.sh bundles gives each its own copy
+  // of that registry, and getDatabase() then throws "Service database
+  // is not available".)
+  const FIREBASE_APP_MOD = 'https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js';
+  const FIREBASE_DB_MOD  = 'https://www.gstatic.com/firebasejs/12.13.0/firebase-database.js';
   // The Firebase Realtime Database URL is not a secret — database rules
   // limit writes to the players path.
   const FIREBASE_DB_URL = 'https://fairy-fun-182dc-default-rtdb.firebaseio.com';
@@ -499,12 +506,25 @@
       }
     }
 
-    const db = fb.db.getDatabase(fbApp);
-    const playersRef = fb.db.ref(db, `fairyfun/rooms/${FIXED_ROOM}/players`);
-    // push() generates a server-friendly unique key for this player.
-    const selfRef = fb.db.push(playersRef);
-    const selfId = selfRef.key;
-    const connectedRef = fb.db.ref(db, '.info/connected');
+    // Set up the database handles. These calls are synchronous, but
+    // getDatabase() can still throw (e.g. the database service failed to
+    // register). Guard them too, or such a throw would escape before the
+    // handshake timeout below is armed and leave the spinner running
+    // forever instead of falling back to solo play.
+    let db, playersRef, selfRef, selfId, connectedRef;
+    try {
+      db = fb.db.getDatabase(fbApp);
+      playersRef = fb.db.ref(db, `fairyfun/rooms/${FIXED_ROOM}/players`);
+      // push() generates a server-friendly unique key for this player.
+      selfRef = fb.db.push(playersRef);
+      selfId = selfRef.key;
+      connectedRef = fb.db.ref(db, '.info/connected');
+    } catch (e) {
+      console.warn('Fairy Fun: database service unavailable, playing solo.', e);
+      mpConnecting = false;
+      setConnectionState('failed');
+      return;
+    }
 
     // Wait for the database to actually report itself connected. This
     // is the real "are we in the shared world?" signal — it goes true
