@@ -246,3 +246,5 @@ the fairy world screen tells the player when this has happened.
    and much more.
  * Pick a car or other vehicle.
  * "Exit" button from all screens except initial.
+ * Make it possible to plant and pick vegetables.
+ * Make it possible for fairies to cook.
