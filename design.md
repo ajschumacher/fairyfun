@@ -208,8 +208,9 @@ side, and which inside belongs to which building are all in
 pictures so it can be checked by eye.
 
 Players see each other inside a building only when they are inside
-the same one. Fruits stay outdoors: a fairy carrying a fruit can take
-it in and eat it there, but can only put it down outside. In sketch
+the same one. A fairy carrying a fruit can take it inside, and put it
+down or eat it there; a fruit left inside a building stays there (for
+everyone) until someone picks it up again. In sketch
 mode the buildings have no doors, since the door shapes are traced on
 the fancy tiles.
 

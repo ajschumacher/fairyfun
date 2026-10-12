@@ -576,9 +576,8 @@
       try { fb.db.set(mp.selfRef, myStatePayload()); } catch (e) { /* ignore */ }
     }
     // A carried fruit travels with us, so share its position on the
-    // same cadence as our own. Indoors it stays put in the world (by
-    // the door) until we come back out.
-    if (carrying && !state.inside) syncCarriedFruit();
+    // same cadence as our own.
+    if (carrying) syncCarriedFruit();
     lastNetSync = performance.now();
   }
 
@@ -739,6 +738,7 @@
         f.v = value.v || 0;
         f.tile = value.tile;
         f.pos = value.pos;
+        f.inside = typeof value.inside === 'string' ? value.inside : null;
         f.carriedBy = value.carriedBy || null;
         renderFruit(id, f);
       }
@@ -787,7 +787,11 @@
   // glowing fruit to pick it up; the fruit rides along at the offset it
   // was picked up at. Tap a carried fruit to put it down, or double-tap
   // it to eat it.
-  const fruits = new Map(); // id -> { t, v, tile, pos, carriedBy, el, placed }
+  //
+  // Fruits can be carried into buildings and left there: a fruit's
+  // place is its tile and position, plus the building it is inside (if
+  // any), just like a fairy's.
+  const fruits = new Map(); // id -> { t, v, tile, pos, inside, carriedBy, el, placed }
   let carrying = null;      // { id, rel: {x, y} } while we carry a fruit
   let fruitTapTimer = null; // pending single-tap (put down) on the carried fruit
 
@@ -811,14 +815,16 @@
   // bookkeeping like the DOM element).
   function fruitPayload(f) {
     const p = { t: f.t, v: f.v || 0, tile: f.tile, pos: f.pos };
+    if (f.inside) p.inside = f.inside;
     if (f.carriedBy) p.carriedBy = f.carriedBy;
     return p;
   }
 
-  // Fruits live outdoors, so none are on "my tile" while I am inside.
+  // Is the fruit where I am: on my tile, and inside the same building
+  // (or outdoors, if I am)?
   function fruitOnMyTile(f) {
-    if (state.inside) return false;
-    return !!(f.tile && f.tile.x === state.tile.x && f.tile.y === state.tile.y);
+    return !!(f.tile && f.tile.x === state.tile.x && f.tile.y === state.tile.y)
+      && (f.inside || null) === state.inside;
   }
 
   // Is another player (who is actually still here) holding this fruit?
@@ -894,11 +900,22 @@
 
   // Where the carried fruit sits in world terms: our tile and position
   // plus the pickup offset, carried over into the neighboring tile if
-  // the offset pushes it past an edge.
+  // the offset pushes it past an edge. Inside a building there is no
+  // neighboring tile, so the fruit stays within the room.
   function carriedWorldPos() {
     let tx = state.tile.x, ty = state.tile.y;
     let px = state.pos.x + carrying.rel.x;
     let py = state.pos.y + carrying.rel.y;
+    if (state.inside) {
+      return {
+        tile: { x: tx, y: ty },
+        pos: {
+          x: +Math.min(1, Math.max(0, px)).toFixed(3),
+          y: +Math.min(1, Math.max(0, py)).toFixed(3),
+        },
+        inside: state.inside,
+      };
+    }
     if (px > 1) { if (tx < WORLD_W) { tx += 1; px -= 1; } else px = 1; }
     if (px < 0) { if (tx > 1)       { tx -= 1; px += 1; } else px = 0; }
     if (py > 1) { if (ty < WORLD_H) { ty += 1; py -= 1; } else py = 1; }
@@ -906,6 +923,7 @@
     return {
       tile: { x: tx, y: ty },
       pos: { x: +px.toFixed(3), y: +py.toFixed(3) },
+      inside: null,
     };
   }
 
@@ -915,6 +933,7 @@
     const w = carriedWorldPos();
     f.tile = w.tile;
     f.pos = w.pos;
+    f.inside = w.inside;
     if (fruitsAreShared()) {
       try { fb.db.set(fruitRefFor(carrying.id), fruitPayload(f)); } catch (e) { /* ignore */ }
     }
@@ -948,11 +967,6 @@
         clearTimeout(fruitTapTimer);
         fruitTapTimer = null;
         eatFruit(id);
-      } else if (state.inside) {
-        // Fruits grow and rest outdoors: inside, a carried fruit can be
-        // eaten but not put down. Arm the timer only to catch a second
-        // tap.
-        fruitTapTimer = setTimeout(() => { fruitTapTimer = null; }, DOUBLE_TAP_MS);
       } else {
         fruitTapTimer = setTimeout(() => {
           fruitTapTimer = null;
@@ -986,12 +1000,10 @@
     if (!carrying || carrying.id !== id) return;
     const f = fruits.get(id);
     if (!f) { carrying = null; return; }
-    if (!state.inside) {
-      // (Indoors, the fruit is put down where it last was outdoors.)
-      const w = carriedWorldPos();
-      f.tile = w.tile;
-      f.pos = w.pos;
-    }
+    const w = carriedWorldPos();
+    f.tile = w.tile;
+    f.pos = w.pos;
+    f.inside = w.inside;
     f.carriedBy = null;
     carrying = null;
     cancelCarryCleanup(id);
